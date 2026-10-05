@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/Firebase";
+import Link from "next/link";
 
 const Banner = () => {
   const router = useRouter();
@@ -55,13 +56,11 @@ const Banner = () => {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
-            <button
-              onClick={() => handleProtectedNav("/lost-item")}
-              disabled={loading}
+            <Link href="LostForm"
               className="rounded-xl bg-red-600 px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-red-600/20 transition hover:-translate-y-0.5 hover:bg-red-700 disabled:opacity-50"
             >
               I Lost Something
-            </button>
+            </Link>
 
             <button
               onClick={() => handleProtectedNav("/found-item")}
