@@ -84,24 +84,7 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Lost / Found buttons: second row on mobile, centered on desktop */}
-        <div className="order-last flex w-full items-center gap-2 md:order-none md:col-start-2 md:row-start-1 md:w-auto md:justify-center md:gap-3">
-          <button
-            onClick={() => handleProtectedNav("/lost-item")}
-            disabled={loading}
-            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700 disabled:opacity-50 md:flex-none md:px-5"
-          >
-            <span className="hidden sm:inline">Add </span>Lost Item
-          </button>
-
-          <button
-            onClick={() => handleProtectedNav("/found-item")}
-            disabled={loading}
-            className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow transition hover:bg-green-700 disabled:opacity-50 md:flex-none md:px-5"
-          >
-            <span className="hidden sm:inline">Add </span>Found Item
-          </button>
-        </div>
+        
       </div>
     </nav>
   );

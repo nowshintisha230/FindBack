@@ -19,7 +19,7 @@ const Banner = () => {
     return () => unsubscribe();
   }, []);
 
-  // Login থাকলে target page, না থাকলে sign in page
+  
   const handleProtectedNav = (path: string) => {
     if (loading) return;
     router.push(user ? path : "/SignInForm");
@@ -27,12 +27,12 @@ const Banner = () => {
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100">
-      {/* Background decoration */}
+     
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-amber-300/30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-orange-300/30 blur-3xl" />
 
       <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 md:grid-cols-2 md:py-20">
-        {/* Left: text */}
+       
         <div className="text-center md:text-left">
           <span className="inline-block rounded-full border border-amber-200 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-amber-800">
             Lost &amp; Found Community
@@ -49,9 +49,9 @@ const Banner = () => {
           </h1>
 
           <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-gray-600 md:mx-0 md:text-lg">
-            হারানো জিনিসের খোঁজ দিন, কুড়িয়ে পাওয়া জিনিস ফিরিয়ে দিন।
+            Report what you&apos;ve lost, return what you&apos;ve found.
             <br className="hidden sm:block" />
-            আপনার একটা পোস্ট কারো দিন বদলে দিতে পারে।
+            One post from you can change someone&apos;s day.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
