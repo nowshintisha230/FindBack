@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LostItem {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String   @default("")
+  location    String
+  date        DateTime @db.Date
+  phone       String
+  reward      String   @default("")
+  images      String[]
+  userId      String
+  userName    String   @default("")
+  userEmail   String   @default("")
+  userPhoto   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([userId])
+  @@map("lost_items")
+}
+
+model FoundItem {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String   @default("")
+  location    String
+  date        DateTime @db.Date
+  phone       String
+  reward      String   @default("")
+  images      String[]
+  userId      String
+  userName    String   @default("")
+  userEmail   String   @default("")
+  userPhoto   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([userId])
+  @@map("found_items")
+}

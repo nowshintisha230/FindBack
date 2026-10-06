@@ -1,10 +1,52 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth } from "@/lib/Firebase";
 
 const MAX_IMAGES = 5;
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
 
-const LostItemPage = () => {
+type ItemFormProps = {
+  type: "lost" | "found";
+};
+
+const COPY = {
+  lost: {
+    badge: "Lost Item Report",
+    heading: "What did you lose?",
+    sub: "Give us as many details as you can. It helps others identify your item faster.",
+    namePlaceholder: "e.g. Black leather wallet",
+    descPlaceholder: "Color, brand, size, any marks or unique features...",
+    locationLabel: "Where did you lose it?",
+    locationPlaceholder: "e.g. GEC Circle, Chattogram",
+    dateLabel: "Date Lost",
+    dateName: "dateLost",
+    submit: "Submit Lost Report",
+    badgeClass: "border-red-200 text-red-700",
+    buttonClass: "bg-red-600 shadow-red-600/20 hover:bg-red-700",
+  },
+  found: {
+    badge: "Found Item Report",
+    heading: "What did you find?",
+    sub: "Describe the item without revealing every detail, so the real owner can prove it is theirs.",
+    namePlaceholder: "e.g. Blue backpack",
+    descPlaceholder: "Color, brand, size, where it was left, any marks...",
+    locationLabel: "Where did you find it?",
+    locationPlaceholder: "e.g. New Market, Chattogram",
+    dateLabel: "Date Found",
+    dateName: "dateFound",
+    submit: "Submit Found Report",
+    badgeClass: "border-green-200 text-green-700",
+    buttonClass: "bg-green-600 shadow-green-600/20 hover:bg-green-700",
+  },
+} as const;
+
+const ItemForm = ({ type }: ItemFormProps) => {
+  const copy = COPY[type];
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -41,6 +83,51 @@ const LostItemPage = () => {
     syncFiles([]);
   };
 
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+
+    const user = auth.currentUser;
+    if (!user) {
+      router.push("/SignInForm");
+      return;
+    }
+
+    if (files.some((f) => f.size > MAX_FILE_SIZE)) {
+      setError("Each photo must be 15MB or smaller.");
+      return;
+    }
+
+    const formData = new FormData(e.currentTarget);
+    formData.set("type", type);
+    formData.delete("images");
+    files.forEach((file) => formData.append("images", file));
+
+    try {
+      setSubmitting(true);
+
+      const token = await user.getIdToken();
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "Something went wrong. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setSubmitting(false);
+    }
+  };
+
   const inputClass =
     "w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-200";
   const labelClass = "mb-1.5 block text-sm font-semibold text-gray-700";
@@ -52,19 +139,21 @@ const LostItemPage = () => {
 
       <div className="relative mx-auto max-w-2xl">
         <div className="mb-8 text-center">
-          <span className="inline-block rounded-full border border-red-200 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-red-700">
-            Lost Item Report
+          <span
+            className={`inline-block rounded-full border bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-wider ${copy.badgeClass}`}
+          >
+            {copy.badge}
           </span>
           <h1 className="mt-4 text-3xl font-extrabold text-gray-900 sm:text-4xl">
-            What did you lose?
+            {copy.heading}
           </h1>
-          <p className="mt-2 text-gray-600">
-            Give us as many details as you can. It helps others identify your
-            item faster.
-          </p>
+          <p className="mt-2 text-gray-600">{copy.sub}</p>
         </div>
 
-        <form className="space-y-5 rounded-3xl border border-amber-100 bg-white p-6 shadow-2xl sm:p-8">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 rounded-3xl border border-amber-100 bg-white p-6 shadow-2xl sm:p-8"
+        >
           <div>
             <label htmlFor="title" className={labelClass}>
               Item Name <span className="text-red-600">*</span>
@@ -73,7 +162,7 @@ const LostItemPage = () => {
               id="title"
               name="title"
               type="text"
-              placeholder="e.g. Black leather wallet"
+              placeholder={copy.namePlaceholder}
               required
               className={inputClass}
             />
@@ -105,7 +194,7 @@ const LostItemPage = () => {
               id="description"
               name="description"
               rows={4}
-              placeholder="Color, brand, size, any marks or unique features..."
+              placeholder={copy.descPlaceholder}
               className={inputClass}
             />
           </div>
@@ -113,25 +202,25 @@ const LostItemPage = () => {
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="location" className={labelClass}>
-                Where did you lose it? <span className="text-red-600">*</span>
+                {copy.locationLabel} <span className="text-red-600">*</span>
               </label>
               <input
                 id="location"
                 name="location"
                 type="text"
-                placeholder="e.g. GEC Circle, Chattogram"
+                placeholder={copy.locationPlaceholder}
                 required
                 className={inputClass}
               />
             </div>
 
             <div>
-              <label htmlFor="dateLost" className={labelClass}>
-                Date Lost <span className="text-red-600">*</span>
+              <label htmlFor={copy.dateName} className={labelClass}>
+                {copy.dateLabel} <span className="text-red-600">*</span>
               </label>
               <input
-                id="dateLost"
-                name="dateLost"
+                id={copy.dateName}
+                name={copy.dateName}
                 type="date"
                 required
                 className={inputClass}
@@ -154,18 +243,20 @@ const LostItemPage = () => {
               />
             </div>
 
-            <div>
-              <label htmlFor="reward" className={labelClass}>
-                Reward (optional)
-              </label>
-              <input
-                id="reward"
-                name="reward"
-                type="text"
-                placeholder="e.g. 500 BDT"
-                className={inputClass}
-              />
-            </div>
+            {type === "lost" && (
+              <div>
+                <label htmlFor="reward" className={labelClass}>
+                  Reward (optional)
+                </label>
+                <input
+                  id="reward"
+                  name="reward"
+                  type="text"
+                  placeholder="e.g. 500 BDT"
+                  className={inputClass}
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -195,7 +286,7 @@ const LostItemPage = () => {
                   : "Click to add more photos"}
               </span>
               <span className="mt-1 text-xs text-gray-500">
-                PNG, JPG or WEBP. Up to {MAX_IMAGES} photos.
+                Any image format. Up to {MAX_IMAGES} photos.
               </span>
               <input
                 ref={inputRef}
@@ -250,12 +341,19 @@ const LostItemPage = () => {
             )}
           </div>
 
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 pt-2 sm:flex-row">
             <button
               type="submit"
-              className="flex-1 rounded-xl bg-red-600 px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-red-600/20 transition hover:-translate-y-0.5 hover:bg-red-700"
+              disabled={submitting}
+              className={`flex-1 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${copy.buttonClass}`}
             >
-              Submit Lost Report
+              {submitting ? "Submitting..." : copy.submit}
             </button>
             <a
               href="/"
@@ -270,4 +368,4 @@ const LostItemPage = () => {
   );
 };
 
-export default LostItemPage;
+export default ItemForm;
