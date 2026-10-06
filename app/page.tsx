@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import ItemsSection from "@/components/Itemssection";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
     <Navbar></Navbar>
     <Banner />
     <ItemsSection></ItemsSection>
+    <Footer></Footer>
     </div>
   );
 }

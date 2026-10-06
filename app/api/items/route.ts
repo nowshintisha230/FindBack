@@ -20,6 +20,7 @@ const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 type PublicItem = {
   id: string;
   name: string;
+  category: string;
   place: string;
   date: string;
   reportedAt: string;
@@ -29,45 +30,87 @@ type PublicItem = {
 
 type HomePayload = { lost: PublicItem[]; found: PublicItem[] };
 
-export async function GET() {
-  const cached = await cacheGet<HomePayload>(CACHE_KEY);
-  if (cached) {
-    return NextResponse.json(cached, { headers: { "X-Cache": "HIT" } });
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const toPublic = (row: {
+  id: string;
+  name: string;
+  category: string;
+  location: string;
+  date: Date;
+  createdAt: Date;
+  description: string;
+  images: string[];
+}): PublicItem => ({
+  id: row.id,
+  name: row.name,
+  category: row.category,
+  place: row.location,
+  date: row.date.toISOString().slice(0, 10),
+  reportedAt: row.createdAt.toISOString(),
+  description: row.description,
+  image: row.images[0] || "",
+});
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const q = (searchParams.get("q") || "").trim().slice(0, 80);
+  const category = (searchParams.get("category") || "").trim().slice(0, 40);
+  const location = (searchParams.get("location") || "").trim().slice(0, 120);
+  const type = searchParams.get("type") || "all";
+  const from = searchParams.get("from") || "";
+  const to = searchParams.get("to") || "";
+
+  const hasFilters = Boolean(
+    q || category || location || from || to || type === "lost" || type === "found"
+  );
+
+  if (!hasFilters) {
+    const cached = await cacheGet<HomePayload>(CACHE_KEY);
+    if (cached) {
+      return NextResponse.json(cached, { headers: { "X-Cache": "HIT" } });
+    }
   }
+
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (DATE_RE.test(from)) dateFilter.gte = new Date(`${from}T00:00:00.000Z`);
+  if (DATE_RE.test(to)) dateFilter.lte = new Date(`${to}T00:00:00.000Z`);
+
+  const where = {
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { description: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+    ...(category ? { category } : {}),
+    ...(location
+      ? { location: { contains: location, mode: "insensitive" as const } }
+      : {}),
+    ...(dateFilter.gte || dateFilter.lte ? { date: dateFilter } : {}),
+  };
 
   const orderBy = { createdAt: "desc" as const };
 
-  const [lostRows, foundRows] = await Promise.all([
-    prisma.lostItem.findMany({ orderBy, take: 500 }),
-    prisma.foundItem.findMany({ orderBy, take: 500 }),
-  ]);
-
-  const toPublic = (row: {
-    id: string;
-    name: string;
-    location: string;
-    date: Date;
-    createdAt: Date;
-    description: string;
-    images: string[];
-  }): PublicItem => ({
-    id: row.id,
-    name: row.name,
-    place: row.location,
-    date: row.date.toISOString().slice(0, 10),
-    reportedAt: row.createdAt.toISOString(),
-    description: row.description,
-    image: row.images[0] || "",
-  });
+  const lostRows =
+    type === "found" ? [] : await prisma.lostItem.findMany({ where, orderBy, take: 500 });
+  const foundRows =
+    type === "lost" ? [] : await prisma.foundItem.findMany({ where, orderBy, take: 500 });
 
   const payload: HomePayload = {
     lost: lostRows.map(toPublic),
     found: foundRows.map(toPublic),
   };
 
-  await cacheSet(CACHE_KEY, payload, CACHE_TTL);
+  if (!hasFilters) {
+    await cacheSet(CACHE_KEY, payload, CACHE_TTL);
+  }
 
-  return NextResponse.json(payload, { headers: { "X-Cache": "MISS" } });
+  return NextResponse.json(payload, {
+    headers: { "X-Cache": hasFilters ? "BYPASS" : "MISS" },
+  });
 }
 
 export async function POST(request: Request) {

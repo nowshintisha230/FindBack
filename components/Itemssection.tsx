@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
+import ItemFilters, { EMPTY_FILTERS, Filters, hasActiveFilters } from "./ItemFilters";
 export type Item = {
   id: string;
   name: string;
@@ -156,13 +156,24 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
   const [lostItems, setLostItems] = useState<Item[]>([]);
   const [foundItems, setFoundItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
       try {
-        const res = await fetch("/api/items", { cache: "no-store" });
+        const params = new URLSearchParams();
+        if (showAll) {
+          if (filters.q.trim()) params.set("q", filters.q.trim());
+          if (filters.category) params.set("category", filters.category);
+          if (filters.location.trim()) params.set("location", filters.location.trim());
+          if (filters.type !== "all") params.set("type", filters.type);
+          if (filters.from) params.set("from", filters.from);
+          if (filters.to) params.set("to", filters.to);
+        }
+        const qs = params.toString();
+        const res = await fetch(`/api/items${qs ? `?${qs}` : ""}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Request failed");
         const data: { lost: Item[]; found: Item[] } = await res.json();
         if (!active) return;
@@ -174,14 +185,16 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
       }
     };
 
-    load();
+    const delay = showAll ? 300 : 0;
+    const first = setTimeout(load, delay);
     const timer = setInterval(load, REFRESH_MS);
 
     return () => {
       active = false;
+      clearTimeout(first);
       clearInterval(timer);
     };
-  }, []);
+  }, [showAll, filters]);
 
   const cutoff = Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000;
   const filterItems = (items: Item[]) =>
@@ -194,6 +207,18 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
   const visibleLost = filterItems(lostItems);
   const visibleFound = filterItems(foundItems);
   const hasAnyItems = lostItems.length + foundItems.length > 0;
+  const filtering = showAll && hasActiveFilters(filters);
+
+  const showLost = !showAll || filters.type !== "found";
+  const showFound = !showAll || filters.type !== "lost";
+  const singleColumn = showLost !== showFound;
+
+  const emptyFor = (kind: "lost" | "found") => {
+    if (loading) return "Loading items...";
+    if (filtering) return `No ${kind} items match your filters.`;
+    if (showAll || !hasAnyItems) return `No ${kind} items posted yet.`;
+    return `No ${kind} items in the last ${RECENT_DAYS} days.`;
+  };
 
   return (
     <section className="bg-white px-4 py-14 sm:px-6 md:py-20">
@@ -207,38 +232,36 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-gray-600">
             {showAll
-              ? "Every report posted by the community, newest first."
+              ? "Search and filter every report posted by the community."
               : "Recent reports from the community. Spot something that belongs to you or someone you know? Get in touch."}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 items-start gap-3 sm:gap-6 lg:gap-10">
-          <Column
-            title="Lost Items"
-            subtitle="Things people are looking for"
-            items={visibleLost}
-            type="lost"
-            emptyText={
-              loading
-                ? "Loading items..."
-                : showAll || !hasAnyItems
-                ? "No lost items posted yet."
-                : `No lost items in the last ${RECENT_DAYS} days.`
-            }
-          />
-          <Column
-            title="Found Items"
-            subtitle="Things waiting to be returned"
-            items={visibleFound}
-            type="found"
-            emptyText={
-              loading
-                ? "Loading items..."
-                : showAll || !hasAnyItems
-                ? "No found items posted yet."
-                : `No found items in the last ${RECENT_DAYS} days.`
-            }
-          />
+        {showAll && <ItemFilters value={filters} onChange={setFilters} />}
+
+        <div
+          className={`grid items-start gap-3 sm:gap-6 lg:gap-10 ${
+            singleColumn ? "grid-cols-1" : "grid-cols-2"
+          }`}
+        >
+          {showLost && (
+            <Column
+              title="Lost Items"
+              subtitle="Things people are looking for"
+              items={visibleLost}
+              type="lost"
+              emptyText={emptyFor("lost")}
+            />
+          )}
+          {showFound && (
+            <Column
+              title="Found Items"
+              subtitle="Things waiting to be returned"
+              items={visibleFound}
+              type="found"
+              emptyText={emptyFor("found")}
+            />
+          )}
         </div>
 
         <div className="mt-12 text-center">
