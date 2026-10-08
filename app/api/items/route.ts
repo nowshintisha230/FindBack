@@ -20,12 +20,15 @@ const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 type PublicItem = {
   id: string;
   name: string;
+    status: string;
   category: string;
   place: string;
   date: string;
   reportedAt: string;
   description: string;
   image: string;
+    latitude: number | null;
+  longitude: number | null;
 };
 
 type HomePayload = { lost: PublicItem[]; found: PublicItem[] };
@@ -41,6 +44,10 @@ const toPublic = (row: {
   createdAt: Date;
   description: string;
   images: string[];
+    status: string;
+      latitude: number | null;
+  longitude: number | null;
+
 }): PublicItem => ({
   id: row.id,
   name: row.name,
@@ -49,6 +56,9 @@ const toPublic = (row: {
   date: row.date.toISOString().slice(0, 10),
   reportedAt: row.createdAt.toISOString(),
   description: row.description,
+    status: row.status,
+      latitude: row.latitude,
+  longitude: row.longitude,
   image: row.images[0] || "",
 });
 
@@ -138,7 +148,27 @@ export async function POST(request: Request) {
   const dateRaw = val("date") || val("dateLost") || val("dateFound");
   const phone = val("phone").replace(/[\s-]/g, "");
   const reward = val("reward");
+    const latRaw = val("latitude");
+    const lngRaw = val("longitude");
+    let latitude: number | null = null;
+    let longitude: number | null = null;
 
+    if (latRaw || lngRaw) {
+      const lat = Number(latRaw);
+      const lng = Number(lngRaw);
+      if (
+        !latRaw ||
+        !lngRaw ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        Math.abs(lat) > 90 ||
+        Math.abs(lng) > 180
+      ) {
+        return NextResponse.json({ error: "Invalid map location." }, { status: 400 });
+      }
+      latitude = lat;
+      longitude = lng;
+    }
   if (!name || !category || !location || !dateRaw) {
     return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
   }
@@ -212,6 +242,8 @@ export async function POST(request: Request) {
     userName: user.name || "",
     userEmail: user.email || "",
     userPhoto: user.picture || "",
+          latitude,
+      longitude,
   };
 
   const created = isFound

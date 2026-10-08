@@ -1,5 +1,5 @@
 "use client";
-
+import NotificationBell from "@/components/NotificationBell";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -56,7 +56,7 @@ const Navbar = () => {
             <span className="text-amber-950">Back</span>
           </span>
         </Link>
-
+ 
         {/* Auth links: far right on desktop, top-right on mobile */}
         <div className="flex items-center gap-2 md:col-start-3 md:row-start-1 md:justify-self-end">
           {user ? (
@@ -67,12 +67,14 @@ const Navbar = () => {
               >
                 <span className="hidden sm:inline">My </span>Profile
               </Link>
+               <NotificationBell />
               <button
                 onClick={handleSignOut}
                 className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-800 sm:px-4 sm:py-2 sm:text-sm"
               >
                 Sign Out
               </button>
+             
             </>
           ) : (
             <Link

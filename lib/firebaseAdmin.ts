@@ -22,3 +22,17 @@ export const verifyRequestUser = async (request: Request) => {
     return null;
   }
 };
+
+export const getUserProfile = async (
+  uid: string
+): Promise<{ name: string; photo: string } | null> => {
+  try {
+    const user = await getAuth(adminApp).getUser(uid);
+    return {
+      name: user.displayName || "",
+      photo: user.photoURL || "",
+    };
+  } catch {
+    return null;
+  }
+};

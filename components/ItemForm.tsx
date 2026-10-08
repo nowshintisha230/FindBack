@@ -3,6 +3,13 @@
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/Firebase";
+import dynamic from "next/dynamic";
+import type { LatLng } from "./map/LocationPicker";
+
+const LocationPicker = dynamic(() => import("./map/LocationPicker"), {
+  ssr: false,
+  loading: () => <div className="h-72 w-full animate-pulse rounded-xl bg-amber-100" />,
+});
 
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
@@ -50,6 +57,7 @@ const ItemForm = ({ type }: ItemFormProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+    const [position, setPosition] = useState<LatLng | null>(null);
 
   const syncFiles = (next: File[]) => {
     const dt = new DataTransfer();
@@ -102,6 +110,10 @@ const ItemForm = ({ type }: ItemFormProps) => {
     formData.set("type", type);
     formData.delete("images");
     files.forEach((file) => formData.append("images", file));
+        if (position) {
+      formData.set("latitude", String(position.lat));
+      formData.set("longitude", String(position.lng));
+    }
 
     try {
       setSubmitting(true);
@@ -227,7 +239,11 @@ const ItemForm = ({ type }: ItemFormProps) => {
               />
             </div>
           </div>
-
+          <div>
+            <span className={labelClass}>Pin the location on map (optional)</span>
+            <LocationPicker value={position} onChange={setPosition} />
+          </div>
+          
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="phone" className={labelClass}>

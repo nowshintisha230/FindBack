@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ItemFilters, { EMPTY_FILTERS, Filters, hasActiveFilters } from "./ItemFilters";
+import SaveButton from "./SaveButton";
+import { SaveResult, savedKey, useSavedItems } from "@/lib/useSavedItems";
+
 export type Item = {
   id: string;
   name: string;
@@ -11,7 +14,10 @@ export type Item = {
   reportedAt: string;
   description: string;
   image?: string;
+  status?: string;
 };
+
+type ToggleSave = (type: "lost" | "found", id: string) => Promise<SaveResult>;
 
 const RECENT_DAYS = 3;
 const REFRESH_MS = 30000;
@@ -36,8 +42,19 @@ const formatReported = (value: string) =>
     year: "numeric",
   });
 
-const ItemCard = ({ item, type }: { item: Item; type: "lost" | "found" }) => {
+export const ItemCard = ({
+  item,
+  type,
+  isSaved = false,
+  onToggleSave,
+}: {
+  item: Item;
+  type: "lost" | "found";
+  isSaved?: boolean;
+  onToggleSave?: () => Promise<SaveResult>;
+}) => {
   const isLost = type === "lost";
+  const returned = item.status === "returned";
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl">
@@ -55,11 +72,16 @@ const ItemCard = ({ item, type }: { item: Item; type: "lost" | "found" }) => {
         )}
         <span
           className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow ${
-            isLost ? "bg-red-600" : "bg-green-600"
+            returned ? "bg-gray-700" : isLost ? "bg-red-600" : "bg-green-600"
           }`}
         >
-          {isLost ? "Lost" : "Found"}
+          {returned ? "✓ Returned" : isLost ? "Lost" : "Found"}
         </span>
+        {onToggleSave && (
+          <div className="absolute right-3 top-3">
+            <SaveButton isSaved={isSaved} onToggle={onToggleSave} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-4">
@@ -97,12 +119,16 @@ const Column = ({
   items,
   type,
   emptyText,
+  saved,
+  onToggleSave,
 }: {
   title: string;
   subtitle: string;
   items: Item[];
   type: "lost" | "found";
   emptyText: string;
+  saved: Set<string>;
+  onToggleSave: ToggleSave;
 }) => {
   const isLost = type === "lost";
 
@@ -143,7 +169,13 @@ const Column = ({
         <div className="max-h-[720px] overflow-y-auto pr-1 [scrollbar-width:thin] sm:pr-2">
           <div className="grid grid-cols-1 gap-3 pb-1 sm:gap-4 xl:grid-cols-2">
             {items.map((item) => (
-              <ItemCard key={item.id} item={item} type={type} />
+              <ItemCard
+                key={item.id}
+                item={item}
+                type={type}
+                isSaved={saved.has(savedKey(type, item.id))}
+                onToggleSave={() => onToggleSave(type, item.id)}
+              />
             ))}
           </div>
         </div>
@@ -157,6 +189,7 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
   const [foundItems, setFoundItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const { saved, toggle } = useSavedItems();
 
   useEffect(() => {
     let active = true;
@@ -180,6 +213,7 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
         setLostItems(data.lost);
         setFoundItems(data.found);
       } catch {
+        // Keep showing the last loaded items if a refresh fails
       } finally {
         if (active) setLoading(false);
       }
@@ -251,6 +285,8 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
               items={visibleLost}
               type="lost"
               emptyText={emptyFor("lost")}
+              saved={saved}
+              onToggleSave={toggle}
             />
           )}
           {showFound && (
@@ -260,6 +296,8 @@ const ItemsSection = ({ showAll = false }: { showAll?: boolean }) => {
               items={visibleFound}
               type="found"
               emptyText={emptyFor("found")}
+              saved={saved}
+              onToggleSave={toggle}
             />
           )}
         </div>

@@ -1,9 +1,19 @@
 "use client";
 
+import SaveButton from "./SaveButton";
+import { savedKey, useSavedItems } from "@/lib/useSavedItems";
+import ChatButton from "./ChatButton";
+import ClaimSection from "./ClaimSection";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/Firebase";
+import dynamic from "next/dynamic";
+
+const LocationView = dynamic(() => import("./map/LocationView"), {
+  ssr: false,
+  loading: () => <div className="h-60 w-full animate-pulse rounded-xl bg-amber-100" />,
+});
 
 type Detail = {
   id: string;
@@ -17,6 +27,10 @@ type Detail = {
   reward: string;
   images: string[];
   poster: { name: string; photo: string };
+  status: "open" | "returned";
+  latitude: number | null;
+  longitude: number | null;
+  returnedAt: string | null;
   isOwner: boolean;
   contact: { phone: string; email: string } | null;
 };
@@ -162,7 +176,36 @@ const InfoRow = ({
 const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
   const [state, setState] = useState<ViewState>("loading");
   const [item, setItem] = useState<Detail | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  const { saved, toggle } = useSavedItems();
+
   const isLost = type === "lost";
+
+  const toggleReturned = async () => {
+    if (!item) return;
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setUpdating(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/items/${type}/${id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ returned: item.status !== "returned" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setItem({ ...item, status: data.status, returnedAt: data.returnedAt });
+      }
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -233,6 +276,7 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
   const hasImages = item.images.length > 0;
   const needsScroll = item.images.length > 3;
   const categoryLabel = CATEGORY_LABELS[item.category] || item.category;
+  const returned = item.status === "returned";
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 px-4 py-10 sm:px-6 md:py-14">
@@ -251,9 +295,11 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
           <div className="mx-auto w-full max-w-xs sm:max-w-sm lg:mx-0">
             <div className="relative overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-xl">
               <span
-                className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow ${accent.badge}`}
+                className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow ${
+                  returned ? "bg-gray-700" : accent.badge
+                }`}
               >
-                {isLost ? "Lost" : "Found"}
+                {returned ? "Returned" : isLost ? "Lost" : "Found"}
               </span>
 
               {hasImages ? (
@@ -301,6 +347,11 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
                   {categoryLabel}
                 </span>
+                {returned && (
+                  <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                    ✓ Returned
+                  </span>
+                )}
                 {item.isOwner && (
                   <span className="rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white">
                     Your post
@@ -324,6 +375,14 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
                     {item.poster.name || "FindBack member"}
                   </span>
                 </p>
+              </div>
+
+              <div className="mt-4">
+                <SaveButton
+                  variant="full"
+                  isSaved={saved.has(savedKey(type, item.id))}
+                  onToggle={() => toggle(type, item.id)}
+                />
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -351,6 +410,29 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
                 )}
               </div>
 
+              {item.latitude !== null && item.longitude !== null && (
+                <div className="mt-5">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+                    Map
+                  </h2>
+                  <div className="mt-2">
+                    <LocationView
+                      lat={item.latitude}
+                      lng={item.longitude}
+                      type={type}
+                    />
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-sm font-semibold text-amber-700 hover:underline"
+                  >
+                    Open in Google Maps →
+                  </a>
+                </div>
+              )}
+
               <div className="mt-6">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
                   Description
@@ -359,6 +441,38 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
                   {item.description || "No description provided."}
                 </p>
               </div>
+
+              {item.isOwner && (
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm text-gray-700">
+                    {returned
+                      ? `Marked as returned${
+                          item.returnedAt
+                            ? ` on ${formatDate(item.returnedAt)}`
+                            : ""
+                        }.`
+                      : isLost
+                      ? "Got your item back? Mark this post as returned."
+                      : "Handed this item to its owner? Mark this post as returned."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={toggleReturned}
+                    disabled={updating}
+                    className={`mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold shadow transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      returned
+                        ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        : "bg-emerald-600 text-white hover:bg-emerald-700"
+                    }`}
+                  >
+                    {updating
+                      ? "Saving..."
+                      : returned
+                      ? "Undo: mark as not returned"
+                      : "Mark as returned"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="rounded-3xl border border-amber-100 bg-white p-6 shadow-xl sm:p-8">
@@ -434,6 +548,22 @@ const ItemDetails = ({ type, id }: { type: "lost" | "found"; id: string }) => {
                 </div>
               )}
             </div>
+
+            {!isLost && (
+              <>
+                <ChatButton
+                  type={type}
+                  id={item.id}
+                  itemName={item.name}
+                  isOwner={item.isOwner}
+                />
+                <ClaimSection
+                  id={item.id}
+                  isOwner={item.isOwner}
+                  returned={returned}
+                />
+              </>
+            )}
           </div>
         </div>
       </div>
