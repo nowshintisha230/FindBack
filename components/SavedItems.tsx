@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/Firebase";
-import { Item, ItemCard } from "./ItemsSection";
+import { Item, ItemCard } from "./Itemssection";
 
 type SavedEntry = Item & { type: "lost" | "found" };
 
